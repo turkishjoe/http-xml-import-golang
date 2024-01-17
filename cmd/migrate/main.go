@@ -9,21 +9,46 @@ import (
 	"os"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 )
 
 const (
-	dialect  = "pgx"
-	dbString = "host=localhost user=myapp_user password=myapp_pass dbname=myapp_db port=5432 sslmode=disable"
+	dialect = "pgx"
 )
 
 var (
 	flags = flag.NewFlagSet("migrate", flag.ExitOnError)
-	dir   = flags.String("dir", "migrations", "directory with migration files")
 )
 
 func main() {
+	var dir string
+
+	err := godotenv.Load()
+	if err != nil {
+		return
+	}
+
+	fmt.Println(os.Getenv("MIGRATION_DIR"))
+
+	if len(os.Getenv("MIGRATION_DIR")) > 0 {
+		dir = os.Getenv("MIGRARTION_DIR")
+	} else {
+		dir = *flags.String("dir", "migrations", "directory with migration files")
+	}
+
 	flags.Usage = usage
 	flags.Parse(os.Args[1:])
+
+	//	dbString := "host=localhost user=myapp_user password=myapp_pass dbname=myapp_db port=5432 sslmode=disable"
+	dbString := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_DATABASE"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_SSL_MODE"),
+	)
 
 	args := flags.Args()
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
@@ -44,7 +69,7 @@ func main() {
 		}
 	}()
 
-	if err := goose.Run(command, db, *dir, args[1:]...); err != nil {
+	if err := goose.Run(command, db, dir, args[1:]...); err != nil {
 		log.Fatalf("migrate %v: %v", command, err)
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/go-kit/kit/log"
+	"github.com/joho/godotenv"
 	"github.com/turkishjoe/xml-parser/internal/app/api"
 	"github.com/turkishjoe/xml-parser/internal/app/api/endpoints"
 	"github.com/turkishjoe/xml-parser/internal/app/api/transport"
@@ -15,6 +16,12 @@ const defaultHTTPPort = "8081"
 
 func main() {
 	var logger log.Logger
+
+	err := godotenv.Load()
+	if err != nil {
+		return
+	}
+
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	httpAddr := net.JoinHostPort(envString("HTTP_HOST", defaultHTTPHost), envString("HTTP_PORT", defaultHTTPPort))
