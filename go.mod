@@ -1,3 +1,6 @@
-module github.com/YOUR-USER-OR-ORG-NAME/YOUR-REPO-NAME
+module github.com/turkishjoe/xml-parser
 
 go 1.19
+
+require github.com/go-kit/kit v0.10.0
+require github.com/go-logfmt/logfmt v0.5.0 // indirect
