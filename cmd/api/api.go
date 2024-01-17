@@ -10,13 +10,14 @@ import (
 	"os"
 )
 
+const defaultHTTPHost = "localhost"
 const defaultHTTPPort = "8081"
 
 func main() {
 	var logger log.Logger
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	httpAddr := net.JoinHostPort("localhost", envString("HTTP_PORT", defaultHTTPPort))
+	httpAddr := net.JoinHostPort(envString("HTTP_HOST", defaultHTTPHost), envString("HTTP_PORT", defaultHTTPPort))
 
 	var (
 		service     = api.NewService()
