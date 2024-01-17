@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"github.com/tamerh/xml-stream-parser"
 	"net/http"
 )
 
@@ -14,17 +16,19 @@ func NewService() Service {
 }
 
 func (w *ApiService) Update(ctx context.Context) {
+	fmt.Println("start")
 	url := "https://www.treasury.gov/ofac/downloads/sdn.xml"
-
-	client := http.Client{
-		Timeout: 3,
-	}
-	// Get the data
-	resp, err := client.Get(url)
-	if err != nil {
-		fmt.Println("fuck")
-		return
-	}
-	fmt.Printf("test")
+	req, _ := http.NewRequest("GET", url, nil)
+	resp, _ := http.DefaultClient.Do(req)
 	defer resp.Body.Close()
+	fmt.Println("Cool")
+	buf := bufio.NewReaderSize(resp.Body, 32*1024)
+
+	parser := xmlparser.NewXMLParser(buf, "sdnEntry")
+
+	for xml := range parser.Stream() {
+		el := xml.Childs["uid"]
+
+		fmt.Println(el[0].InnerText)
+	}
 }
