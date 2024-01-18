@@ -3,9 +3,11 @@ package api
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/go-kit/kit/log"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tamerh/xml-stream-parser"
 	"net/http"
 )
@@ -16,11 +18,11 @@ const (
 )
 
 type ApiService struct {
-	DatabaseConnection *pgx.Conn
+	DatabaseConnection *pgxpool.Pool
 	Logger             *log.Logger
 }
 
-func NewService(conn *pgx.Conn, logger *log.Logger) Service {
+func NewService(conn *pgxpool.Pool, logger *log.Logger) Service {
 	return &ApiService{
 		DatabaseConnection: conn,
 		Logger:             logger,
@@ -34,25 +36,60 @@ func (apiService *ApiService) Update(ctx context.Context) {
 	buf := bufio.NewReaderSize(resp.Body, BUFFER_SIZE)
 	parser := xmlparser.NewXMLParser(buf, "sdnEntry")
 
-	for xml := range parser.Stream() {
-		uidElement, hasUid := xml.Childs["uid"]
-		firstElement, hasFirstName := xml.Childs["first_name"]
-		lastElement, hasLastName := xml.Childs["last_name"]
-		titleElement, hasTitle := xml.Childs["title"]
+	requiredFields := []string{}
+	optinalFields := []string{"first_name", "last_name", "title"}
+	databaseMapper := map[string]string{
+		"uid":        "id",
+		"first_name": "first_name",
+		"last_name":  "last_name",
+		"title":      "title",
+	}
 
+	for xml := range parser.Stream() {
+		args := pgx.NamedArgs{}
+		uidElement, hasUid := xml.Childs["uid"]
+
+		//id обрабатываем отдельно, чтобы в случае дальнеших ошибок, писать id записи
 		if !hasUid {
-			apiService.Logger.Log("Uuid is not set")
+			apiService.Logger.Log("Uuid is not set, move to next iteration")
 
 			continue
 		}
 
-		apiService.DatabaseConnection.Query(
+		args["id"] = uidElement
+		var requiredFieldError error
+		for _, requiredField := range requiredFields {
+			value, hasField := xml.Childs[requiredField]
+			if !hasField {
+				requiredFieldError = errors.New("Failed to parse required field:" + requiredField)
+				break
+			}
+
+			args[databaseMapper[requiredField]] = value[0].InnerText
+		}
+
+		if requiredFieldError == nil {
+			apiService.Logger.Log(requiredFieldError)
+			continue
+		}
+
+		for _, optionalField := range optinalFields {
+			value, hasField := xml.Childs[optionalField]
+			if !hasField {
+				apiService.Logger.Log("Failed to parse required field:", optionalField)
+				break
+			}
+
+			args[databaseMapper[optionalField]] = value[0].InnerText
+		}
+
+		query := "INSERT INTO individuals(id, first_name, last_name, title) " +
+			"VALUES($1, $2, $3, $4) "
+
+		apiService.DatabaseConnection.Exec(
 			context.Background(),
-			"INSERT INTO VALUES($1, $2, $3, $4) ",
-			uidElement[0].InnerText,
-			firstElement[0].InnerText,
-			lastElement[0].InnerText,
-			titleElement[0].InnerText,
+			query,
+			args,
 		)
 
 		//fmt.Println(el[0].InnerText)

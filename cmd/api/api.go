@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/go-kit/kit/log"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/turkishjoe/xml-parser/internal/app/api"
 	"github.com/turkishjoe/xml-parser/internal/app/api/endpoints"
@@ -35,12 +36,12 @@ func main() {
 		os.Getenv("DB_DATABASE"),
 	)
 
-	conn, err := pgx.Connect(context.Background(), postgresUrl)
+	conn, err := pgxpool.New(context.Background(), postgresUrl)
 	if err != nil {
 		logger.Log("Unable to connect to database:", err)
 		os.Exit(1)
 	}
-	defer conn.Close(context.Background())
+	defer conn.Close()
 
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
