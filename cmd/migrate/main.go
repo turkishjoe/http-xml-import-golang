@@ -25,13 +25,12 @@ func main() {
 
 	err := godotenv.Load()
 	if err != nil {
+		fmt.Println("Fail to load env")
 		return
 	}
 
-	fmt.Println(os.Getenv("MIGRATION_DIR"))
-
 	if len(os.Getenv("MIGRATION_DIR")) > 0 {
-		dir = os.Getenv("MIGRARTION_DIR")
+		dir = os.Getenv("MIGRATION_DIR")
 	} else {
 		dir = *flags.String("dir", "migrations", "directory with migration files")
 	}
