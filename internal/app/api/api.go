@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"fmt"
 	"github.com/go-kit/kit/log"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,11 +37,12 @@ func (apiService *ApiService) Update(ctx context.Context) {
 	parser := xmlparser.NewXMLParser(buf, "sdnEntry")
 
 	requiredFields := []string{}
-	optinalFields := []string{"firstName", "lastName", "title"}
+	optinalFields := []string{"firstName", "lastName", "title", "remarks"}
 	databaseMapper := map[string]string{
 		"firstName": "first_name",
 		"lastName":  "last_name",
 		"title":     "title",
+		"remarks":   "remarks",
 	}
 
 	for xml := range parser.Stream() {
@@ -101,8 +101,11 @@ func (apiService *ApiService) Update(ctx context.Context) {
 			args[databaseMapper[optionalField]] = value[0].InnerText
 		}
 
-		query := "INSERT INTO individuals(id, first_name, last_name, title) " +
-			"VALUES(@id, @first_name, @last_name, @title) "
+		query := "INSERT INTO individuals(id, first_name, last_name, title, remarks) " +
+			"VALUES(@id, @first_name, @last_name, @title, @remarks) " +
+			"ON CONFLICT(\"id\") DO UPDATE SET" +
+			" first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name, title=EXCLUDED.title, remarks=EXCLUDED.remarks " +
+			"RETURNING id"
 
 		_, databaseErr := apiService.DatabaseConnection.Exec(
 			context.Background(),

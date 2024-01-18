@@ -7,7 +7,8 @@ create table individuals
             primary key,
     first_name varchar(300) not null ,
     last_name  varchar(300) not null ,
-    title varchar(300) null
+    title text null,
+    remarks text null
 );
 
 -- +goose StatementEnd
