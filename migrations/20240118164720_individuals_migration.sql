@@ -5,8 +5,9 @@ create table individuals
     id         bigint
         constraint individuals_pk
             primary key,
-    first_name varchar(300),
-    last_name  varchar(300)
+    first_name varchar(300) not null ,
+    last_name  varchar(300) not null ,
+    title varchar(300) null
 );
 
 -- +goose StatementEnd

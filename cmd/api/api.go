@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"github.com/go-kit/kit/log"
+	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 	"github.com/turkishjoe/xml-parser/internal/app/api"
 	"github.com/turkishjoe/xml-parser/internal/app/api/endpoints"
@@ -19,15 +22,32 @@ func main() {
 
 	err := godotenv.Load()
 	if err != nil {
+		logger.Log("Fatal load env")
 		return
 	}
+
+	// urlExample := "postgres://username:password@localhost:5432/database_name"
+	postgresUrl := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_DATABASE"),
+	)
+
+	conn, err := pgx.Connect(context.Background(), postgresUrl)
+	if err != nil {
+		logger.Log("Unable to connect to database:", err)
+		os.Exit(1)
+	}
+	defer conn.Close(context.Background())
 
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	httpAddr := net.JoinHostPort(envString("HTTP_HOST", defaultHTTPHost), envString("HTTP_PORT", defaultHTTPPort))
 
 	var (
-		service     = api.NewService()
+		service     = api.NewService(conn, &logger)
 		eps         = endpoints.NewEndpoints(service)
 		httpHandler = transport.NewHTTPHandler(eps)
 	)
@@ -39,10 +59,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	err := http.Serve(httpListener, httpHandler)
+	errService := http.Serve(httpListener, httpHandler)
 
-	if err != nil {
-		logger.Log("transport", "HTTP", "during", "Listen", "err", err)
+	if errService != nil {
+		logger.Log("transport", "HTTP", "during", "Listen", "err", errService)
 		os.Exit(1)
 	}
 }
