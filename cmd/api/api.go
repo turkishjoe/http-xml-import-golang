@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-kit/kit/log"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/turkishjoe/xml-parser/internal/app/api"
@@ -13,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 )
 
 const defaultHTTPHost = "localhost"
@@ -20,6 +20,7 @@ const defaultHTTPPort = "8081"
 
 func main() {
 	var logger log.Logger
+	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 
 	err := godotenv.Load()
 	if err != nil {
@@ -27,12 +28,19 @@ func main() {
 		return
 	}
 
+	dbPort, parseError := strconv.Atoi(os.Getenv("DB_PORT"))
+
+	if parseError != nil {
+		logger.Log("Unable to read config:", parseError)
+		os.Exit(1)
+	}
+
 	// urlExample := "postgres://username:password@localhost:5432/database_name"
 	postgresUrl := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
 		os.Getenv("DB_USER"),
 		os.Getenv("DB_PASSWORD"),
 		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
+		dbPort,
 		os.Getenv("DB_DATABASE"),
 	)
 
@@ -48,7 +56,7 @@ func main() {
 	httpAddr := net.JoinHostPort(envString("HTTP_HOST", defaultHTTPHost), envString("HTTP_PORT", defaultHTTPPort))
 
 	var (
-		service     = api.NewService(conn, &logger)
+		service     = api.NewService(conn, logger)
 		eps         = endpoints.NewEndpoints(service)
 		httpHandler = transport.NewHTTPHandler(eps)
 	)

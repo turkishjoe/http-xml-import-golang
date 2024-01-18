@@ -13,16 +13,17 @@ import (
 )
 
 const (
-	BUFFER_SIZE = 32 * 1024
-	SDN_URL     = "https://www.treasury.gov/ofac/downloads/sdn.xml"
+	BUFFER_SIZE         = 32 * 1024
+	SND_INDIVIDIAL_TYPE = "Individual"
+	SDN_URL             = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 )
 
 type ApiService struct {
 	DatabaseConnection *pgxpool.Pool
-	Logger             *log.Logger
+	Logger             log.Logger
 }
 
-func NewService(conn *pgxpool.Pool, logger *log.Logger) Service {
+func NewService(conn *pgxpool.Pool, logger log.Logger) Service {
 	return &ApiService{
 		DatabaseConnection: conn,
 		Logger:             logger,
@@ -37,26 +38,41 @@ func (apiService *ApiService) Update(ctx context.Context) {
 	parser := xmlparser.NewXMLParser(buf, "sdnEntry")
 
 	requiredFields := []string{}
-	optinalFields := []string{"first_name", "last_name", "title"}
+	optinalFields := []string{"firstName", "lastName", "title"}
 	databaseMapper := map[string]string{
-		"uid":        "id",
-		"first_name": "first_name",
-		"last_name":  "last_name",
-		"title":      "title",
+		"firstName": "first_name",
+		"lastName":  "last_name",
+		"title":     "title",
 	}
 
 	for xml := range parser.Stream() {
 		args := pgx.NamedArgs{}
+
 		uidElement, hasUid := xml.Childs["uid"]
+		uid := uidElement[0].InnerText
+		args["id"] = uid
 
 		//id обрабатываем отдельно, чтобы в случае дальнеших ошибок, писать id записи
 		if !hasUid {
-			apiService.Logger.Log("Uuid is not set, move to next iteration")
+			apiService.Logger.Log("parse", "Uuid is not set, move to next iteration")
 
 			continue
 		}
 
-		args["id"] = uidElement
+		sdnType, hasSdnType := xml.Childs["sdnType"]
+
+		if !hasSdnType {
+			apiService.Logger.Log("parse", "Missing sdnType", "id", uid)
+
+			continue
+		}
+
+		if sdnType[0].InnerText != SND_INDIVIDIAL_TYPE {
+			apiService.Logger.Log("parse", "Sdn type not individual", "id", uid)
+
+			continue
+		}
+
 		var requiredFieldError error
 		for _, requiredField := range requiredFields {
 			value, hasField := xml.Childs[requiredField]
@@ -68,28 +84,35 @@ func (apiService *ApiService) Update(ctx context.Context) {
 			args[databaseMapper[requiredField]] = value[0].InnerText
 		}
 
-		if requiredFieldError == nil {
-			apiService.Logger.Log(requiredFieldError)
+		if requiredFieldError != nil {
+			apiService.Logger.Log("parse", requiredFieldError)
 			continue
 		}
 
 		for _, optionalField := range optinalFields {
 			value, hasField := xml.Childs[optionalField]
+
 			if !hasField {
-				apiService.Logger.Log("Failed to parse required field:", optionalField)
+				apiService.Logger.Log("parse", "Failed to parse optional field:"+optionalField,
+					"id:", uid,
+				)
 				break
 			}
-
 			args[databaseMapper[optionalField]] = value[0].InnerText
 		}
 
 		query := "INSERT INTO individuals(id, first_name, last_name, title) " +
-			"VALUES($1, $2, $3, $4) "
+			"VALUES(@id, @first_name, @last_name, @title) "
 
-		apiService.DatabaseConnection.Exec(
+		_, databaseErr := apiService.DatabaseConnection.Exec(
 			context.Background(),
 			query,
 			args,
 		)
+
+		if databaseErr != nil {
+			apiService.Logger.Log("parse", databaseErr)
+			panic(databaseErr)
+		}
 	}
 }
