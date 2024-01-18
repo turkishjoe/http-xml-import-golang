@@ -91,7 +91,5 @@ func (apiService *ApiService) Update(ctx context.Context) {
 			query,
 			args,
 		)
-
-		//fmt.Println(el[0].InnerText)
 	}
 }
