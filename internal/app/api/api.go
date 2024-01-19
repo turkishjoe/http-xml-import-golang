@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"github.com/go-kit/kit/log"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -124,18 +125,32 @@ func (apiService *ApiService) Update(ctx context.Context) {
 func (apiService *ApiService) GetNames(ctx context.Context, name string, searchType SearchType) []Individual {
 	var result []Individual
 	var queryStringBuilder strings.Builder
-	queryStringBuilder.WriteString("SELECT * from individuals WHERE ")
+	queryStringBuilder.WriteString("SELECT id, first_name, last_name from individuals WHERE ")
+
+	likeString := "CONCAT('%',LOWER(@name),'%')"
 
 	if searchType == Weak || searchType == Both {
-		queryStringBuilder.WriteString("(LOWER(first_name) LIKE '%LOWER(@name)%' OR LOWER(last_name) LIKE '%LOWER(@name)%')")
+		queryStringBuilder.WriteString(
+			fmt.Sprintf(
+				"LOWER(first_name) LIKE %s OR LOWER(last_name) LIKE %s",
+				likeString,
+				likeString,
+			),
+		)
 	}
 
 	if searchType == Strong || searchType == Both {
 		if searchType == Both {
-			queryStringBuilder.WriteString(" AND ")
+			queryStringBuilder.WriteString(" OR ")
 		}
 
-		queryStringBuilder.WriteString("(LOWER(first_name) = 'LOWER(@name)' OR last_name = 'LOWER(@name)')")
+		queryStringBuilder.WriteString(
+			fmt.Sprintf(
+				"LOWER(first_name) = %s OR last_name = %s",
+				likeString,
+				likeString,
+			),
+		)
 	}
 
 	rows, err := apiService.DatabaseConnection.Query(context.Background(), queryStringBuilder.String(), pgx.NamedArgs{
@@ -149,7 +164,7 @@ func (apiService *ApiService) GetNames(ctx context.Context, name string, searchT
 
 	for rows.Next() {
 		individual := Individual{}
-		err = rows.Scan(&individual)
+		err = rows.Scan(&individual.uid, &individual.first_name, &individual.last_name)
 		if err != nil {
 			apiService.Logger.Log("scan_rows", err)
 			return result

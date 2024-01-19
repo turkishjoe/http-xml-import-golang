@@ -13,9 +13,9 @@ const (
 )
 
 var searchTypeStringMap = map[string]SearchType{
-	"strong":  Strong,
-	"Premium": Weak,
-	"Both":    Both,
+	"strong": Strong,
+	"weak":   Weak,
+	"both":   Both,
 }
 
 type Individual struct {
