@@ -39,12 +39,10 @@ func (apiService *ApiService) Update(ctx context.Context) {
 	parser := xmlparser.NewXMLParser(buf, "sdnEntry")
 
 	requiredFields := []string{}
-	optinalFields := []string{"firstName", "lastName", "title", "remarks"}
+	optinalFields := []string{"firstName", "lastName"}
 	databaseMapper := map[string]string{
 		"firstName": "first_name",
 		"lastName":  "last_name",
-		"title":     "title",
-		"remarks":   "remarks",
 	}
 
 	for xml := range parser.Stream() {
@@ -103,10 +101,10 @@ func (apiService *ApiService) Update(ctx context.Context) {
 			args[databaseMapper[optionalField]] = value[0].InnerText
 		}
 
-		query := "INSERT INTO individuals(id, first_name, last_name, title, remarks) " +
-			"VALUES(@id, @first_name, @last_name, @title, @remarks) " +
+		query := "INSERT INTO individuals(id, first_name, last_name) " +
+			"VALUES(@id, @first_name, @last_name) " +
 			"ON CONFLICT(\"id\") DO UPDATE SET" +
-			" first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name, title=EXCLUDED.title, remarks=EXCLUDED.remarks " +
+			" first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name " +
 			"RETURNING id"
 
 		_, databaseErr := apiService.DatabaseConnection.Exec(
@@ -116,7 +114,7 @@ func (apiService *ApiService) Update(ctx context.Context) {
 		)
 
 		if databaseErr != nil {
-			apiService.Logger.Log("parse", databaseErr)
+			apiService.Logger.Log("database", databaseErr)
 			panic(databaseErr)
 		}
 	}
