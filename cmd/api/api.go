@@ -18,8 +18,9 @@ import (
 const defaultHTTPHost = "localhost"
 const defaultHTTPPort = "8081"
 
+var logger log.Logger
+
 func main() {
-	var logger log.Logger
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 
 	err := godotenv.Load()
@@ -28,27 +29,8 @@ func main() {
 		return
 	}
 
-	dbPort, parseError := strconv.Atoi(os.Getenv("DB_PORT"))
+	conn := initDbPoll()
 
-	if parseError != nil {
-		logger.Log("Unable to read config:", parseError)
-		os.Exit(1)
-	}
-
-	// urlExample := "postgres://username:password@localhost:5432/database_name"
-	postgresUrl := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_HOST"),
-		dbPort,
-		os.Getenv("DB_DATABASE"),
-	)
-
-	conn, err := pgxpool.New(context.Background(), postgresUrl)
-	if err != nil {
-		logger.Log("Unable to connect to database:", err)
-		os.Exit(1)
-	}
 	defer conn.Close()
 
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
@@ -74,6 +56,31 @@ func main() {
 		logger.Log("transport", "HTTP", "during", "Listen", "err", errService)
 		os.Exit(1)
 	}
+}
+
+func initDbPoll() *pgxpool.Pool {
+	dbPort, parseError := strconv.Atoi(os.Getenv("DB_PORT"))
+
+	if parseError != nil {
+		logger.Log("Unable to read config:", parseError)
+		os.Exit(1)
+	}
+
+	postgresUrl := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_HOST"),
+		dbPort,
+		os.Getenv("DB_DATABASE"),
+	)
+
+	conn, err := pgxpool.New(context.Background(), postgresUrl)
+	if err != nil {
+		logger.Log("Unable to connect to database:", err)
+		os.Exit(1)
+	}
+
+	return conn
 }
 
 func envString(env, fallback string) string {
