@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tamerh/xml-stream-parser"
+	"github.com/turkishjoe/xml-parser/internal/pkg/state"
 	"net/http"
 	"strings"
 )
@@ -22,16 +23,20 @@ const (
 type ApiService struct {
 	DatabaseConnection *pgxpool.Pool
 	Logger             log.Logger
+	Notifier           state.Notifier
 }
 
 func NewService(conn *pgxpool.Pool, logger log.Logger) Service {
 	return &ApiService{
 		DatabaseConnection: conn,
 		Logger:             logger,
+		Notifier:           state.NewNotifier(),
 	}
 }
 
 func (apiService *ApiService) Update(ctx context.Context) {
+	apiService.Notifier.Notify(true)
+	defer apiService.Notifier.Notify(false)
 	req, _ := http.NewRequest("GET", SDN_URL, nil)
 	resp, _ := http.DefaultClient.Do(req)
 	defer resp.Body.Close()
@@ -176,6 +181,11 @@ func (apiService *ApiService) GetNames(ctx context.Context, name string, searchT
 
 func (apiService *ApiService) State(ctx context.Context) State {
 	var res int64
+
+	if apiService.Notifier.ReadValue() {
+		return Updating
+	}
+
 	err := apiService.DatabaseConnection.QueryRow(context.Background(), "select id from individuals limit 1").Scan(&res)
 
 	if err != nil {
