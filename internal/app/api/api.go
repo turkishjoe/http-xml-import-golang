@@ -125,23 +125,22 @@ func (apiService *ApiService) GetNames(ctx context.Context, name string, searchT
 	var result []Individual
 	var queryStringBuilder strings.Builder
 	queryStringBuilder.WriteString("SELECT * from individuals WHERE ")
-	needAnd := false
 
 	if searchType == Weak || searchType == Both {
-		queryStringBuilder.WriteString("(LOWER(first_name) LIKE '%LOWER(@firstname)%' OR LOWER(last_name) LIKE LOWER('%@lastname%'))")
-
-		needAnd = true
+		queryStringBuilder.WriteString("(LOWER(first_name) LIKE '%LOWER(@name)%' OR LOWER(last_name) LIKE '%LOWER(@name)%')")
 	}
 
 	if searchType == Strong || searchType == Both {
-		if needAnd {
+		if searchType == Both {
 			queryStringBuilder.WriteString(" AND ")
 		}
 
-		queryStringBuilder.WriteString("(LOWER(first_name) = 'LOWER(@firstname)' OR last_name = 'LOWER(lastname)')")
+		queryStringBuilder.WriteString("(LOWER(first_name) = 'LOWER(@name)' OR last_name = 'LOWER(@name)')")
 	}
 
-	rows, err := apiService.DatabaseConnection.Query(context.Background(), queryStringBuilder.String())
+	rows, err := apiService.DatabaseConnection.Query(context.Background(), queryStringBuilder.String(), pgx.NamedArgs{
+		"name": name,
+	})
 
 	if err != nil {
 		apiService.Logger.Log("database", err)

@@ -41,7 +41,7 @@ func decodeHTTPGetNameRequest(_ context.Context, httpReq *http.Request) (interfa
 
 	queryParams := httpReq.URL.Query()
 
-	req.Name = queryParams.Get("Names")
+	req.Name = queryParams.Get("name")
 
 	if len(req.Name) == 0 {
 		return nil, errors.New("Name parameter does not pass")
