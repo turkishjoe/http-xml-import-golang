@@ -35,6 +35,12 @@ func MakeGetNamesEndpoint(svc api.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(GetNameRequest)
 		names := svc.GetNames(ctx, req.Name, api.CreateSearchTypeFromString(req.IndividualSearchType))
+
+		//Для декода в пустом массиве
+		if names == nil {
+			names = make([]api.Individual, 0)
+		}
+
 		return GetNameResponse{Individuals: names}, nil
 	}
 }

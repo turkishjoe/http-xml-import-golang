@@ -19,9 +19,9 @@ var searchTypeStringMap = map[string]SearchType{
 }
 
 type Individual struct {
-	uid        int
-	first_name string
-	last_name  string
+	Uid       int    `json:"uid"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
 }
 
 type Service interface {

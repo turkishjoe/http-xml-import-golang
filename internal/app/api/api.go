@@ -164,7 +164,7 @@ func (apiService *ApiService) GetNames(ctx context.Context, name string, searchT
 
 	for rows.Next() {
 		individual := Individual{}
-		err = rows.Scan(&individual.uid, &individual.first_name, &individual.last_name)
+		err = rows.Scan(&individual.Uid, &individual.FirstName, &individual.LastName)
 		if err != nil {
 			apiService.Logger.Log("scan_rows", err)
 			return result
