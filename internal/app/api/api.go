@@ -175,3 +175,7 @@ func (apiService *ApiService) GetNames(ctx context.Context, name string, searchT
 
 	return result
 }
+
+func (apiService *ApiService) State(ctx context.Context) State {
+	return Empty
+}

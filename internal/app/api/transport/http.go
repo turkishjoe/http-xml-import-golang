@@ -17,11 +17,11 @@ func NewHTTPHandler(ep endpoints.Set) http.Handler {
 		decodeHTTPServiceUpdateRequest,
 		encodeResponse,
 	))
-	/*m.Handle("/state", httptransport.NewServer(
-		ep.UpdateEndpoint,
-		decodeHTTPUpdateRequest,
+	m.Handle("/state", httptransport.NewServer(
+		ep.StateEndpoint,
+		decodeHTTPServiceStateRequest,
 		encodeResponse,
-	))*/
+	))
 	m.Handle("/get_names", httptransport.NewServer(
 		ep.GetNamesEndpoint,
 		decodeHTTPGetNameRequest,
@@ -29,6 +29,11 @@ func NewHTTPHandler(ep endpoints.Set) http.Handler {
 	))
 
 	return m
+}
+
+func decodeHTTPServiceStateRequest(_ context.Context, _ *http.Request) (interface{}, error) {
+	var req endpoints.StateRequest
+	return req, nil
 }
 
 func decodeHTTPServiceUpdateRequest(_ context.Context, _ *http.Request) (interface{}, error) {

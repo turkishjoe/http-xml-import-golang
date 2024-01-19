@@ -7,14 +7,14 @@ type UpdateRequest struct {
 
 type UpdateResponse struct {
 	//	Documents []internal.Document `json:"documents"`
-	Err string `json:"err,omitempty"`
+	//Err string `json:"err,omitempty"`
 }
 
-type ServiceStatusRequest struct{}
+type StateRequest struct{}
 
-type ServiceStatusResponse struct {
-	Code int    `json:"status"`
-	Err  string `json:"err,omitempty"`
+type StateResponse struct {
+	Result bool   `json:"result"`
+	Info   string `json:"info"`
 }
 
 type GetNameRequest struct {
@@ -24,4 +24,16 @@ type GetNameRequest struct {
 
 type GetNameResponse struct {
 	Individuals []api.Individual
+}
+
+var searchTypeStringMap = map[string]api.SearchType{
+	"strong": api.Strong,
+	"weak":   api.Weak,
+	"both":   api.Both,
+}
+
+var stateMap = map[api.State]string{
+	api.Empty:    "empty",
+	api.Updating: "updating",
+	api.Ok:       "ok",
 }

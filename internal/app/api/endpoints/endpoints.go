@@ -14,8 +14,8 @@ type Set struct {
 
 func NewEndpoints(svc api.Service) Set {
 	return Set{
-		UpdateEndpoint: MakeUpdateEndpoint(svc),
-		//StateEndpoint:   MakeStateEndpoint(svc),
+		UpdateEndpoint:   MakeUpdateEndpoint(svc),
+		StateEndpoint:    MakeStateEndpoint(svc),
 		GetNamesEndpoint: MakeGetNamesEndpoint(svc),
 	}
 }
@@ -27,14 +27,29 @@ func MakeUpdateEndpoint(svc api.Service) endpoint.Endpoint {
 		/*		if err != nil {
 				return UpdateResponse{}, nil
 			}*/
-		return UpdateResponse{""}, nil
+		return UpdateResponse{}, nil
+	}
+}
+
+func MakeStateEndpoint(svc api.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		state := svc.State(ctx)
+
+		return StateResponse{Result: state == api.Ok, Info: stateMap[state]}, nil
 	}
 }
 
 func MakeGetNamesEndpoint(svc api.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(GetNameRequest)
-		names := svc.GetNames(ctx, req.Name, api.CreateSearchTypeFromString(req.IndividualSearchType))
+
+		searchType, ok := searchTypeStringMap[req.IndividualSearchType]
+
+		if !ok {
+			searchType = api.Both
+		}
+
+		names := svc.GetNames(ctx, req.Name, searchType)
 
 		//Для декода в пустом массиве
 		if names == nil {
