@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tamerh/xml-stream-parser"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -118,4 +119,45 @@ func (apiService *ApiService) Update(ctx context.Context) {
 			panic(databaseErr)
 		}
 	}
+}
+
+func (apiService *ApiService) GetNames(ctx context.Context, name string, searchType SearchType) []Individual {
+	var result []Individual
+	var queryStringBuilder strings.Builder
+	queryStringBuilder.WriteString("SELECT * from individuals WHERE ")
+	needAnd := false
+
+	if searchType == Weak || searchType == Both {
+		queryStringBuilder.WriteString("(LOWER(first_name) LIKE '%LOWER(@firstname)%' OR LOWER(last_name) LIKE LOWER('%@lastname%'))")
+
+		needAnd = true
+	}
+
+	if searchType == Strong || searchType == Both {
+		if needAnd {
+			queryStringBuilder.WriteString(" AND ")
+		}
+
+		queryStringBuilder.WriteString("(LOWER(first_name) = 'LOWER(@firstname)' OR last_name = 'LOWER(lastname)')")
+	}
+
+	rows, err := apiService.DatabaseConnection.Query(context.Background(), queryStringBuilder.String())
+
+	if err != nil {
+		apiService.Logger.Log("database", err)
+		return result
+	}
+
+	for rows.Next() {
+		individual := Individual{}
+		err = rows.Scan(&individual)
+		if err != nil {
+			apiService.Logger.Log("scan_rows", err)
+			return result
+		}
+
+		result = append(result, individual)
+	}
+
+	return result
 }

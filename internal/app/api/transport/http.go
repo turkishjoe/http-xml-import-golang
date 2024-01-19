@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/turkishjoe/xml-parser/internal/app/api/endpoints"
 	"net/http"
@@ -20,18 +21,34 @@ func NewHTTPHandler(ep endpoints.Set) http.Handler {
 		ep.UpdateEndpoint,
 		decodeHTTPUpdateRequest,
 		encodeResponse,
-	))
-	m.Handle("/get_names", httptransport.NewServer(
-		ep.AddEndpoint,
-		decodeHTTPAddRequest,
-		encodeResponse,
 	))*/
+	m.Handle("/get_names", httptransport.NewServer(
+		ep.GetNamesEndpoint,
+		decodeHTTPGetNameRequest,
+		encodeResponse,
+	))
 
 	return m
 }
 
 func decodeHTTPServiceUpdateRequest(_ context.Context, _ *http.Request) (interface{}, error) {
 	var req endpoints.UpdateRequest
+	return req, nil
+}
+
+func decodeHTTPGetNameRequest(_ context.Context, httpReq *http.Request) (interface{}, error) {
+	var req endpoints.GetNameRequest
+
+	queryParams := httpReq.URL.Query()
+
+	req.Name = queryParams.Get("Names")
+
+	if len(req.Name) == 0 {
+		return nil, errors.New("Name parameter does not pass")
+	}
+
+	req.IndividualSearchType = queryParams.Get("type")
+
 	return req, nil
 }
 

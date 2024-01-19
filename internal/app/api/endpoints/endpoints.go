@@ -16,7 +16,7 @@ func NewEndpoints(svc api.Service) Set {
 	return Set{
 		UpdateEndpoint: MakeUpdateEndpoint(svc),
 		//StateEndpoint:   MakeStateEndpoint(svc),
-		//GetNamesEndpoint: MakeGetNamesEndpoint(svc),
+		GetNamesEndpoint: MakeGetNamesEndpoint(svc),
 	}
 }
 
@@ -31,13 +31,10 @@ func MakeUpdateEndpoint(svc api.Service) endpoint.Endpoint {
 	}
 }
 
-/*func MakeGetNamesEndpoint(svc api.Service) endpoint.Endpoint {
+func MakeGetNamesEndpoint(svc api.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(StatusRequest)
-		status, err := svc.Status(ctx, req.TicketID)
-		if err != nil {
-			return StatusResponse{Status: status, Err: err.Error()}, nil
-		}
-		return StatusResponse{Status: status, Err: ""}, nil
+		req := request.(GetNameRequest)
+		names := svc.GetNames(ctx, req.Name, api.CreateSearchTypeFromString(req.IndividualSearchType))
+		return GetNameResponse{Individuals: names}, nil
 	}
-}*/
+}
