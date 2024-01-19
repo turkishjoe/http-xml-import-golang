@@ -177,5 +177,12 @@ func (apiService *ApiService) GetNames(ctx context.Context, name string, searchT
 }
 
 func (apiService *ApiService) State(ctx context.Context) State {
-	return Empty
+	var res int64
+	err := apiService.DatabaseConnection.QueryRow(context.Background(), "select id from individuals limit 1").Scan(&res)
+
+	if err != nil {
+		return Empty
+	}
+
+	return Ok
 }
