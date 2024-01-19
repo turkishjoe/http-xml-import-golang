@@ -1,24 +1,18 @@
 package api
 
 import (
-	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"github.com/go-kit/kit/log"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/tamerh/xml-stream-parser"
+	"github.com/turkishjoe/xml-parser/internal/pkg/individuals"
 	"github.com/turkishjoe/xml-parser/internal/pkg/state"
 	"net/http"
 	"strings"
 )
 
-const (
-	BUFFER_SIZE         = 32 * 1024
-	SND_INDIVIDIAL_TYPE = "Individual"
-	SDN_URL             = "https://www.treasury.gov/ofac/downloads/sdn.xml"
-)
+const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 
 type ApiService struct {
 	DatabaseConnection *pgxpool.Pool
@@ -37,91 +31,45 @@ func NewService(conn *pgxpool.Pool, logger log.Logger) Service {
 func (apiService *ApiService) Update(ctx context.Context) {
 	apiService.Notifier.Notify(true)
 	defer apiService.Notifier.Notify(false)
-	req, _ := http.NewRequest("GET", SDN_URL, nil)
-	resp, _ := http.DefaultClient.Do(req)
-	defer resp.Body.Close()
-	buf := bufio.NewReaderSize(resp.Body, BUFFER_SIZE)
-	parser := xmlparser.NewXMLParser(buf, "sdnEntry")
 
-	requiredFields := []string{}
-	optinalFields := []string{"firstName", "lastName"}
 	databaseMapper := map[string]string{
+		"uid":       "id",
 		"firstName": "first_name",
 		"lastName":  "last_name",
 	}
 
-	for xml := range parser.Stream() {
-		args := pgx.NamedArgs{}
+	var parsedRow map[string]string
+	req, _ := http.NewRequest("GET", SDN_URL, nil)
+	resp, _ := http.DefaultClient.Do(req)
 
-		uidElement, hasUid := xml.Childs["uid"]
-		uid := uidElement[0].InnerText
-		args["id"] = uid
+	parserChannel := make(chan map[string]string)
+	parserInstance := individuals.Parser{}
 
-		//id обрабатываем отдельно, чтобы в случае дальнеших ошибок, писать id записи
-		if !hasUid {
-			apiService.Logger.Log("parse", "Uuid is not set, move to next iteration")
+	go parserInstance.Parse(resp.Body, parserChannel)
 
-			continue
-		}
+	parsedRow = <-parserChannel
 
-		sdnType, hasSdnType := xml.Childs["sdnType"]
+	args := pgx.NamedArgs{}
 
-		if !hasSdnType {
-			apiService.Logger.Log("parse", "Missing sdnType", "id", uid)
+	for k, v := range parsedRow {
+		args[databaseMapper[k]] = v
+	}
 
-			continue
-		}
+	query := "INSERT INTO individuals(id, first_name, last_name) " +
+		"VALUES(@id, @first_name, @last_name) " +
+		"ON CONFLICT(\"id\") DO UPDATE SET" +
+		" first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name " +
+		"RETURNING id"
 
-		if sdnType[0].InnerText != SND_INDIVIDIAL_TYPE {
-			apiService.Logger.Log("parse", "Sdn type not individual", "id", uid)
+	_, databaseErr := apiService.DatabaseConnection.Exec(
+		context.Background(),
+		query,
+		args,
+	)
 
-			continue
-		}
-
-		var requiredFieldError error
-		for _, requiredField := range requiredFields {
-			value, hasField := xml.Childs[requiredField]
-			if !hasField {
-				requiredFieldError = errors.New("Failed to parse required field:" + requiredField)
-				break
-			}
-
-			args[databaseMapper[requiredField]] = value[0].InnerText
-		}
-
-		if requiredFieldError != nil {
-			apiService.Logger.Log("parse", requiredFieldError)
-			continue
-		}
-
-		for _, optionalField := range optinalFields {
-			value, hasField := xml.Childs[optionalField]
-
-			if !hasField {
-				apiService.Logger.Log("parse", "Failed to parse optional field:"+optionalField,
-					"id:", uid,
-				)
-				break
-			}
-			args[databaseMapper[optionalField]] = value[0].InnerText
-		}
-
-		query := "INSERT INTO individuals(id, first_name, last_name) " +
-			"VALUES(@id, @first_name, @last_name) " +
-			"ON CONFLICT(\"id\") DO UPDATE SET" +
-			" first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name " +
-			"RETURNING id"
-
-		_, databaseErr := apiService.DatabaseConnection.Exec(
-			context.Background(),
-			query,
-			args,
-		)
-
-		if databaseErr != nil {
-			apiService.Logger.Log("database", databaseErr)
-			panic(databaseErr)
-		}
+	if databaseErr != nil {
+		apiService.Logger.Log("database", databaseErr)
+		panic(databaseErr)
 	}
 }
 
