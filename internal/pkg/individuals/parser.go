@@ -36,22 +36,23 @@ func (parser *Parser) Parse(input io.ReadCloser, output chan map[string]string) 
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < PARSE_GOROUTINE; i++ {
-		go parser.parseGoroutineInit(inputXmlChan, output, &wg)
 		wg.Add(1)
+		go parser.parseGoroutineInit(inputXmlChan, output, &wg)
 	}
 
 	for xml := range xmlParser.Stream() {
 		inputXmlChan <- xml
 	}
 
+	close(inputXmlChan)
 	wg.Wait()
 	close(output)
 }
 
 func (parser *Parser) parseGoroutineInit(input chan *xmlparser.XMLElement, output chan map[string]string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	for {
 		xml, ok := <-input
-
 		if !ok {
 			break
 		}
@@ -65,8 +66,6 @@ func (parser *Parser) parseGoroutineInit(input chan *xmlparser.XMLElement, outpu
 
 		output <- res
 	}
-
-	wg.Done()
 }
 
 func (parser *Parser) parseItem(xml *xmlparser.XMLElement) (map[string]string, error) {

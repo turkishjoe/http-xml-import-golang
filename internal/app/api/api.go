@@ -10,8 +10,11 @@ import (
 	"github.com/turkishjoe/xml-parser/internal/pkg/state"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 )
 
+const PARSE_CHANNELS = 2
 const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 
 type ApiService struct {
@@ -32,19 +35,32 @@ func (apiService *ApiService) Update(ctx context.Context) {
 	apiService.Notifier.Notify(true)
 	defer apiService.Notifier.Notify(false)
 
+	req, _ := http.NewRequest("GET", SDN_URL, nil)
+	resp, _ := http.DefaultClient.Do(req)
+
+	parserChannel := make(chan map[string]string, PARSE_CHANNELS)
+	parserInstance := individuals.NewParser(apiService.Logger)
+
+	go parserInstance.Parse(resp.Body, parserChannel)
+	start := time.Now()
+	wg := sync.WaitGroup{}
+
+	for i := 0; i < PARSE_CHANNELS; i++ {
+		go apiService.parse(parserChannel, &wg)
+		wg.Add(1)
+	}
+
+	wg.Wait()
+	apiService.Logger.Log("time_elapsed", time.Since(start))
+}
+
+func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	databaseMapper := map[string]string{
 		"uid":       "id",
 		"firstName": "first_name",
 		"lastName":  "last_name",
 	}
-
-	req, _ := http.NewRequest("GET", SDN_URL, nil)
-	resp, _ := http.DefaultClient.Do(req)
-
-	parserChannel := make(chan map[string]string)
-	parserInstance := individuals.NewParser(apiService.Logger)
-
-	go parserInstance.Parse(resp.Body, parserChannel)
 
 	for {
 		parsedRow, ok := <-parserChannel
