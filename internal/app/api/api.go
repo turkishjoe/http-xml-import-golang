@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const PARSE_CHANNELS = 2
+const SAVE_GOROUTINES = 2
 const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 
 type ApiService struct {
@@ -38,14 +38,14 @@ func (apiService *ApiService) Update(ctx context.Context) {
 	req, _ := http.NewRequest("GET", SDN_URL, nil)
 	resp, _ := http.DefaultClient.Do(req)
 
-	parserChannel := make(chan map[string]string, PARSE_CHANNELS)
+	parserChannel := make(chan map[string]string, SAVE_GOROUTINES)
 	parserInstance := individuals.NewParser(apiService.Logger)
 
 	go parserInstance.Parse(resp.Body, parserChannel)
 	start := time.Now()
 	wg := sync.WaitGroup{}
 
-	for i := 0; i < PARSE_CHANNELS; i++ {
+	for i := 0; i < SAVE_GOROUTINES; i++ {
 		go apiService.parse(parserChannel, &wg)
 		wg.Add(1)
 	}
@@ -62,6 +62,18 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 		"lastName":  "last_name",
 	}
 
+	conflictString := "ON CONFLICT(\"id\") DO UPDATE SET" +
+		" first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name " +
+		"RETURNING id"
+
+	query := "INSERT INTO individuals(id, first_name, last_name) " +
+		"VALUES($1, $2, $3) " +
+		conflictString
+
+	batchSize := 50
+	batchData := make([]map[string]string, batchSize)
+	var i int = 0
+
 	for {
 		parsedRow, ok := <-parserChannel
 
@@ -69,27 +81,32 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 			break
 		}
 
-		args := pgx.NamedArgs{}
 		for k, v := range parsedRow {
-			args[databaseMapper[k]] = v
+			parsedRow[databaseMapper[k]] = v
 		}
 
-		query := "INSERT INTO individuals(id, first_name, last_name) " +
-			"VALUES(@id, @first_name, @last_name) " +
-			"ON CONFLICT(\"id\") DO UPDATE SET" +
-			" first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name " +
-			"RETURNING id"
+		batchData = append(batchData, parsedRow)
+		i++
 
-		_, databaseErr := apiService.DatabaseConnection.Exec(
+		if i != batchSize {
+			continue
+		}
+
+		batch := pgx.Batch{}
+
+		for _, v := range batchData {
+			batch.Queue(query, v["id"], v["first_name"], v["last_name"])
+		}
+
+		apiService.DatabaseConnection.SendBatch(
 			context.Background(),
-			query,
-			args,
+			&batch,
 		)
 
-		if databaseErr != nil {
+		/*if databaseErr != nil {
 			apiService.Logger.Log("database", databaseErr)
 			panic(databaseErr)
-		}
+		}*/
 	}
 }
 
