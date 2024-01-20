@@ -12,7 +12,7 @@ import (
 const (
 	BUFFER_SIZE         = 32 * 1024
 	SND_INDIVIDIAL_TYPE = "Individual"
-	PARSE_GOROUTINE     = 5
+	PARSE_GOROUTINE     = 2
 )
 
 var requiredFields = []string{}
@@ -32,7 +32,7 @@ func (parser *Parser) Parse(input io.ReadCloser, output chan map[string]string) 
 	defer input.Close()
 	buf := bufio.NewReaderSize(input, BUFFER_SIZE)
 	xmlParser := xmlparser.NewXMLParser(buf, "sdnEntry")
-	inputXmlChan := make(chan *xmlparser.XMLElement)
+	inputXmlChan := make(chan *xmlparser.XMLElement, PARSE_GOROUTINE)
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < PARSE_GOROUTINE; i++ {
@@ -53,7 +53,7 @@ func (parser *Parser) parseGoroutineInit(input chan *xmlparser.XMLElement, outpu
 		xml, ok := <-input
 
 		if !ok {
-			continue
+			break
 		}
 
 		res, err := parser.parseItem(xml)
