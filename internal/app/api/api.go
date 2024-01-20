@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const SAVE_GOROUTINES = 2
+const SAVE_GOROUTINES = 1
 const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 
 type ApiService struct {
