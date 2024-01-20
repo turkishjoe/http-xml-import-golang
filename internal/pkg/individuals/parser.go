@@ -12,7 +12,7 @@ import (
 const (
 	BUFFER_SIZE         = 32 * 1024
 	SND_INDIVIDIAL_TYPE = "Individual"
-	PARSE_GOROUTINE     = 3
+	PARSE_GOROUTINE     = 1
 )
 
 var requiredFields = []string{}

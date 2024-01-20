@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+const BATCH_SIZE = 100
 const SAVE_GOROUTINES = 1
 const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 
@@ -70,8 +71,7 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 		"VALUES($1, $2, $3) " +
 		conflictString
 
-	batchSize := 50
-	batchData := make([]map[string]string, batchSize)
+	batchData := make([]map[string]string, BATCH_SIZE)
 	var i int = 0
 
 	for {
@@ -88,7 +88,7 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 		batchData = append(batchData, parsedRow)
 		i++
 
-		if i != batchSize {
+		if i != BATCH_SIZE {
 			continue
 		}
 
@@ -107,6 +107,18 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 			apiService.Logger.Log("database", databaseErr)
 			panic(databaseErr)
 		}*/
+	}
+
+	if i > 0 {
+		batch := pgx.Batch{}
+		for _, v := range batchData {
+			batch.Queue(query, v["id"], v["first_name"], v["last_name"])
+		}
+
+		apiService.DatabaseConnection.SendBatch(
+			context.Background(),
+			&batch,
+		)
 	}
 }
 
