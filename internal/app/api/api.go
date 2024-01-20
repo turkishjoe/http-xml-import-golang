@@ -38,38 +38,42 @@ func (apiService *ApiService) Update(ctx context.Context) {
 		"lastName":  "last_name",
 	}
 
-	var parsedRow map[string]string
 	req, _ := http.NewRequest("GET", SDN_URL, nil)
 	resp, _ := http.DefaultClient.Do(req)
 
 	parserChannel := make(chan map[string]string)
-	parserInstance := individuals.Parser{}
+	parserInstance := individuals.NewParser(apiService.Logger)
 
 	go parserInstance.Parse(resp.Body, parserChannel)
 
-	parsedRow = <-parserChannel
+	for {
+		parsedRow, ok := <-parserChannel
 
-	args := pgx.NamedArgs{}
+		if !ok {
+			break
+		}
 
-	for k, v := range parsedRow {
-		args[databaseMapper[k]] = v
-	}
+		args := pgx.NamedArgs{}
+		for k, v := range parsedRow {
+			args[databaseMapper[k]] = v
+		}
 
-	query := "INSERT INTO individuals(id, first_name, last_name) " +
-		"VALUES(@id, @first_name, @last_name) " +
-		"ON CONFLICT(\"id\") DO UPDATE SET" +
-		" first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name " +
-		"RETURNING id"
+		query := "INSERT INTO individuals(id, first_name, last_name) " +
+			"VALUES(@id, @first_name, @last_name) " +
+			"ON CONFLICT(\"id\") DO UPDATE SET" +
+			" first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name " +
+			"RETURNING id"
 
-	_, databaseErr := apiService.DatabaseConnection.Exec(
-		context.Background(),
-		query,
-		args,
-	)
+		_, databaseErr := apiService.DatabaseConnection.Exec(
+			context.Background(),
+			query,
+			args,
+		)
 
-	if databaseErr != nil {
-		apiService.Logger.Log("database", databaseErr)
-		panic(databaseErr)
+		if databaseErr != nil {
+			apiService.Logger.Log("database", databaseErr)
+			panic(databaseErr)
+		}
 	}
 }
 
