@@ -16,9 +16,8 @@ COPY internal ./internal
 COPY cmd/api/api.go ./cmd/api/api.go
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /api cmd/api/api.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/api cmd/api/api.go
 
 EXPOSE 8080
-
 # Run
-CMD ["/api"]
+ENTRYPOINT ["./api"]
