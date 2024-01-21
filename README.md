@@ -1,4 +1,8 @@
+# Установка
+В .env.example - находится конфиг по умолчанию 
 
+1. cp .env.example .env
+2. docker-compose up -d
 
 
 ## Допущения
