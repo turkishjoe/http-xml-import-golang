@@ -3,7 +3,7 @@ package state
 import "sync"
 
 // Можно сделать более общую модель, а не только bool(например, с дженериками)
-// Но для данной задачи не стал заморачиваться
+// Для данной задачи не стал заморачиваться
 type Notifier interface {
 	Notify(value bool)
 	ReadValue() bool

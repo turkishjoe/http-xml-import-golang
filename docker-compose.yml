@@ -11,15 +11,20 @@ services:
       - postgres:/data/postgres
     ports:
       - "5460:5432"
-    networks:
-      - postgres
     restart: unless-stopped
+  app:
+    build:
+      context: docker/api
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+  migration:
+    build:
+      context: docker/migration
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
 
 volumes:
   postgres:
-  pgadmin:
-
-networks:
-  postgres:
-    driver: bridge
-

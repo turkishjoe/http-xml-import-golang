@@ -15,9 +15,6 @@ import (
 	"strconv"
 )
 
-const defaultHTTPHost = "localhost"
-const defaultHTTPPort = "8081"
-
 var logger log.Logger
 
 func main() {
@@ -35,7 +32,7 @@ func main() {
 
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	httpAddr := net.JoinHostPort(envString("HTTP_HOST", defaultHTTPHost), envString("HTTP_PORT", defaultHTTPPort))
+	httpAddr := net.JoinHostPort(os.Getenv("HTTP_HOST"), os.Getenv("HTTP_PORT"))
 
 	var (
 		service     = api.NewService(conn, logger)
@@ -81,12 +78,4 @@ func initDbPoll() *pgxpool.Pool {
 	}
 
 	return conn
-}
-
-func envString(env, fallback string) string {
-	e := os.Getenv(env)
-	if e == "" {
-		return fallback
-	}
-	return e
 }
