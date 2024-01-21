@@ -43,7 +43,6 @@ func main() {
 		httpHandler = transport.NewHTTPHandler(eps)
 	)
 
-	// The HTTP listener mounts the Go kit HTTP handler we created.
 	httpListener, errListen := net.Listen("tcp", httpAddr)
 	if errListen != nil {
 		logger.Println("Error http transport", errListen)
