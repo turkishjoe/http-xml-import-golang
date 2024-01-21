@@ -15,7 +15,7 @@ import (
 )
 
 const BATCH_SIZE = 100
-const SAVE_GOROUTINES = 1
+const SAVE_GOROUTINES = 3
 const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 
 type ApiService struct {
@@ -33,6 +33,10 @@ func NewService(conn *pgxpool.Pool, logger log.Logger) Service {
 }
 
 func (apiService *ApiService) Update(ctx context.Context) {
+	if apiService.Notifier.ReadValue() {
+		return
+	}
+
 	apiService.Notifier.Notify(true)
 	defer apiService.Notifier.Notify(false)
 
@@ -115,10 +119,12 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 			batch.Queue(query, v["id"], v["first_name"], v["last_name"])
 		}
 
-		apiService.DatabaseConnection.SendBatch(
+		bc := apiService.DatabaseConnection.SendBatch(
 			context.Background(),
 			&batch,
 		)
+
+		bc.Close()
 	}
 }
 
