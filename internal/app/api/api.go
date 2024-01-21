@@ -6,6 +6,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/turkishjoe/xml-parser/internal/app/api/repo"
 	"github.com/turkishjoe/xml-parser/internal/pkg/individuals"
 	"github.com/turkishjoe/xml-parser/internal/pkg/state"
 	"net/http"
@@ -19,26 +20,28 @@ const SAVE_GOROUTINES = 3
 const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 
 type ApiService struct {
-	DatabaseConnection *pgxpool.Pool
+	databaseConnection *pgxpool.Pool
+	individualRepo     repo.IndividualRepo
 	Logger             log.Logger
-	Notifier           state.Notifier
+	notifier           state.Notifier
 }
 
 func NewService(conn *pgxpool.Pool, logger log.Logger) Service {
 	return &ApiService{
-		DatabaseConnection: conn,
+		databaseConnection: conn,
+		individualRepo:     repo.CreateRepo(conn),
 		Logger:             logger,
-		Notifier:           state.NewNotifier(),
+		notifier:           state.NewNotifier(),
 	}
 }
 
 func (apiService *ApiService) Update(ctx context.Context) {
-	if apiService.Notifier.ReadValue() {
+	if apiService.notifier.ReadValue() {
 		return
 	}
 
-	apiService.Notifier.Notify(true)
-	defer apiService.Notifier.Notify(false)
+	apiService.notifier.Notify(true)
+	defer apiService.notifier.Notify(false)
 
 	req, _ := http.NewRequest("GET", SDN_URL, nil)
 	resp, _ := http.DefaultClient.Do(req)
@@ -102,7 +105,7 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 			batch.Queue(query, v["id"], v["first_name"], v["last_name"])
 		}
 
-		apiService.DatabaseConnection.SendBatch(
+		apiService.databaseConnection.SendBatch(
 			context.Background(),
 			&batch,
 		)
@@ -119,7 +122,7 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 			batch.Queue(query, v["id"], v["first_name"], v["last_name"])
 		}
 
-		bc := apiService.DatabaseConnection.SendBatch(
+		bc := apiService.databaseConnection.SendBatch(
 			context.Background(),
 			&batch,
 		)
@@ -159,7 +162,7 @@ func (apiService *ApiService) GetNames(ctx context.Context, name string, searchT
 		)
 	}
 
-	rows, err := apiService.DatabaseConnection.Query(context.Background(), queryStringBuilder.String(), pgx.NamedArgs{
+	rows, err := apiService.databaseConnection.Query(context.Background(), queryStringBuilder.String(), pgx.NamedArgs{
 		"name": name,
 	})
 
@@ -183,13 +186,12 @@ func (apiService *ApiService) GetNames(ctx context.Context, name string, searchT
 }
 
 func (apiService *ApiService) State(ctx context.Context) State {
-	var res int64
-
-	if apiService.Notifier.ReadValue() {
+	if apiService.notifier.ReadValue() {
 		return Updating
 	}
 
-	err := apiService.DatabaseConnection.QueryRow(context.Background(), "select id from individuals limit 1").Scan(&res)
+	var res int64
+	err := apiService.databaseConnection.QueryRow(context.Background(), "select id from individuals limit 1").Scan(&res)
 
 	if err != nil {
 		return Empty
