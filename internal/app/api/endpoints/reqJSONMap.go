@@ -9,8 +9,9 @@ type UpdateRequest struct {
 }
 
 type UpdateResponse struct {
-	//	Documents []internal.Document `json:"documents"`
-	//Err string `json:"err,omitempty"`
+	Result bool   `json:"result"`
+	Info   string `json:"info"`
+	Code   int    `json:"code"`
 }
 
 type StateRequest struct{}

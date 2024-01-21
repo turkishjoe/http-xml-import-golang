@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// Можно вынести декларацию интерфейса
 type IndividualRepo interface {
 	IsEmpty() bool
 	Insert(id int64, firstName string, lastName string) error

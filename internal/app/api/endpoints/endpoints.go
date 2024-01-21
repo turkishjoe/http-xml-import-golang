@@ -5,6 +5,7 @@ import (
 	"github.com/go-kit/kit/endpoint"
 	"github.com/turkishjoe/xml-parser/internal/app/api"
 	"github.com/turkishjoe/xml-parser/internal/app/api/domain"
+	"net/http"
 )
 
 type Set struct {
@@ -23,12 +24,21 @@ func NewEndpoints(svc api.Service) Set {
 
 func MakeUpdateEndpoint(svc api.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		//	req := request.(UpdateRequest)
-		svc.Update(ctx)
-		/*		if err != nil {
-				return UpdateResponse{}, nil
-			}*/
-		return UpdateResponse{}, nil
+		err := svc.Update(ctx)
+
+		if err != nil {
+			return UpdateResponse{
+				false,
+				"service unavailable",
+				http.StatusServiceUnavailable,
+			}, nil
+		}
+
+		return UpdateResponse{
+			true,
+			"ok",
+			http.StatusOK,
+		}, nil
 	}
 }
 

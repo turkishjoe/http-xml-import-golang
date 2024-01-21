@@ -15,7 +15,7 @@ const (
 
 type Service interface {
 	// Get the list of all documents
-	Update(ctx context.Context)
+	Update(ctx context.Context) error
 	State(ctx context.Context) State
 	GetNames(ctx context.Context, name string, searchType domain.SearchType) []domain.Individual
 }

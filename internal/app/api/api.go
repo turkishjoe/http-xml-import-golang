@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/turkishjoe/xml-parser/internal/app/api/domain"
 	"github.com/turkishjoe/xml-parser/internal/app/api/repo"
@@ -11,7 +12,6 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
-	"time"
 )
 
 const BATCH_SIZE = 50
@@ -19,24 +19,22 @@ const SAVE_GOROUTINES = 2
 const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 
 type ApiService struct {
-	databaseConnection *pgxpool.Pool
-	individualRepo     repo.IndividualRepo
-	Logger             *log.Logger
-	notifier           state.Notifier
+	individualRepo repo.IndividualRepo
+	Logger         *log.Logger
+	notifier       state.Notifier
 }
 
 func NewService(conn *pgxpool.Pool, logger *log.Logger) Service {
 	return &ApiService{
-		databaseConnection: conn,
-		individualRepo:     repo.CreateRepo(conn),
-		Logger:             logger,
-		notifier:           state.NewNotifier(),
+		individualRepo: repo.CreateRepo(conn),
+		Logger:         logger,
+		notifier:       state.NewNotifier(),
 	}
 }
 
-func (apiService *ApiService) Update(ctx context.Context) {
+func (apiService *ApiService) Update(ctx context.Context) error {
 	if apiService.notifier.ReadValue() {
-		return
+		return errors.New("Service is processing import now")
 	}
 
 	apiService.notifier.Notify(true)
@@ -49,7 +47,6 @@ func (apiService *ApiService) Update(ctx context.Context) {
 	parserInstance := individuals.NewParser(apiService.Logger)
 
 	go parserInstance.Parse(resp.Body, parserChannel)
-	start := time.Now()
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < SAVE_GOROUTINES; i++ {
@@ -58,7 +55,8 @@ func (apiService *ApiService) Update(ctx context.Context) {
 	}
 
 	wg.Wait()
-	apiService.Logger.Println("time_elapsed", time.Since(start))
+
+	return nil
 }
 
 func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sync.WaitGroup) {
@@ -70,7 +68,7 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 	}
 
 	batchData := make([]map[string]string, BATCH_SIZE)
-	var i int = 0
+	var countInCurrentBatch int = 0
 	initialState := apiService.State(context.Background())
 
 	for {
@@ -80,45 +78,45 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 			break
 		}
 
-		if initialState != Empty {
-			id, parseError := strconv.ParseInt(parsedRow["uid"], 10, 64)
+		if initialState == Empty {
+			for k, v := range parsedRow {
+				parsedRow[databaseMapper[k]] = v
+			}
 
-			if parseError != nil {
-				apiService.Logger.Printf("Cast error, sdn id is not integer:", parsedRow["id"])
+			batchData = append(batchData, parsedRow)
+			countInCurrentBatch++
 
+			if countInCurrentBatch != BATCH_SIZE {
 				continue
 			}
 
-			databaseError := apiService.individualRepo.UpdateOrInsert(
-				id,
-				parsedRow["firstName"],
-				parsedRow["lastName"],
-			)
+			countInCurrentBatch = 0
+			apiService.individualRepo.BatchInsert(batchData)
+		}
 
-			if databaseError != nil {
-				apiService.Logger.Println("database_error", databaseError)
+		id, castingError := strconv.ParseInt(parsedRow["uid"], 10, 64)
 
-				continue
-			}
+		if castingError != nil {
+			apiService.Logger.Printf("Cast error, sdn id is not integer:%s\n", parsedRow["id"])
 
 			continue
 		}
 
-		for k, v := range parsedRow {
-			parsedRow[databaseMapper[k]] = v
+		databaseError := apiService.individualRepo.UpdateOrInsert(
+			id,
+			parsedRow["firstName"],
+			parsedRow["lastName"],
+		)
+
+		//Возможно при таких случаях следует сразу возвращать 500-ку
+		//Но также возможны варианты, когда сбои произошли только на части на данных
+		//Что делать я бы решал в индивидуальном плане, для простоты логирую
+		if databaseError != nil {
+			apiService.Logger.Println("database_error:", databaseError)
 		}
-
-		batchData = append(batchData, parsedRow)
-		i++
-
-		if i != BATCH_SIZE {
-			continue
-		}
-
-		apiService.individualRepo.BatchInsert(batchData)
 	}
 
-	if i > 0 {
+	if countInCurrentBatch > 0 {
 		apiService.individualRepo.BatchInsert(batchData)
 	}
 }
