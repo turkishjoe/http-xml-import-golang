@@ -9,8 +9,6 @@ services:
       PGDATA: /data/postgres
     volumes:
       - postgres:/data/postgres
-    ports:
-      - "5460:5432"
     restart: unless-stopped
   app:
     build:
@@ -23,7 +21,6 @@ services:
     build:
       context: .
       dockerfile: docker/migration/Dockerfile
-
 
 volumes:
   postgres:

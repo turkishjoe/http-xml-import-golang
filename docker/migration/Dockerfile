@@ -16,7 +16,5 @@ COPY migrations ./migrations
 COPY ./cmd/migrate/main.go ./cmd/migrate/main.go
 COPY ./migrations ./migrations
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/migrate cmd/migrate/main.go
-# Build
-CMD ["cd app && ./migrate up"]
-
-ENTRYPOINT ["tail", "-f", "/dev/null"]
+ENTRYPOINT ["./migrate"]
+CMD ["up"]
