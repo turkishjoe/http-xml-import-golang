@@ -2,12 +2,12 @@ package api
 
 import (
 	"context"
-	"github.com/go-kit/kit/log"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/turkishjoe/xml-parser/internal/app/api/domain"
 	"github.com/turkishjoe/xml-parser/internal/app/api/repo"
 	"github.com/turkishjoe/xml-parser/internal/pkg/individuals"
 	"github.com/turkishjoe/xml-parser/internal/pkg/state"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -21,11 +21,11 @@ const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 type ApiService struct {
 	databaseConnection *pgxpool.Pool
 	individualRepo     repo.IndividualRepo
-	Logger             log.Logger
+	Logger             *log.Logger
 	notifier           state.Notifier
 }
 
-func NewService(conn *pgxpool.Pool, logger log.Logger) Service {
+func NewService(conn *pgxpool.Pool, logger *log.Logger) Service {
 	return &ApiService{
 		databaseConnection: conn,
 		individualRepo:     repo.CreateRepo(conn),
@@ -58,7 +58,7 @@ func (apiService *ApiService) Update(ctx context.Context) {
 	}
 
 	wg.Wait()
-	apiService.Logger.Log("time_elapsed", time.Since(start))
+	apiService.Logger.Println("time_elapsed", time.Since(start))
 }
 
 func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sync.WaitGroup) {
@@ -84,7 +84,7 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 			id, parseError := strconv.ParseInt(parsedRow["uid"], 10, 64)
 
 			if parseError != nil {
-				apiService.Logger.Log("parse_error", "Id is not integer:", parsedRow["id"])
+				apiService.Logger.Printf("Cast error, sdn id is not integer:", parsedRow["id"])
 
 				continue
 			}
@@ -96,7 +96,7 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 			)
 
 			if databaseError != nil {
-				apiService.Logger.Log("database_error", databaseError)
+				apiService.Logger.Println("database_error", databaseError)
 
 				continue
 			}
@@ -127,7 +127,7 @@ func (apiService *ApiService) GetNames(ctx context.Context, name string, searchT
 	res, err := apiService.individualRepo.GetNames(name, searchType)
 
 	if err != nil {
-		apiService.Logger.Log("database_error", err)
+		apiService.Logger.Println("Database error:", err)
 	}
 
 	return res

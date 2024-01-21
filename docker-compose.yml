@@ -14,15 +14,15 @@ services:
     restart: unless-stopped
   app:
     build:
-      context: docker/api
+      context: .
+      dockerfile: docker/api/Dockerfile
     ports:
       - "8080:8080"
     restart: unless-stopped
   migration:
     build:
-      context: docker/migration
-    ports:
-      - "8080:8080"
+      context: .
+      dockerfile: docker/migration/Dockerfile
     restart: unless-stopped
 
 

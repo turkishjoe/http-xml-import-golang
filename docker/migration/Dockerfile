@@ -6,15 +6,14 @@ FROM golang:1.19
 WORKDIR /app
 
 # Download Go modules
-COPY ../../.env .env
-COPY ../../go.mod go.sum ./
+COPY .env .env
+COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy the source code. Note the slash at the end, as explained in
 # https://docs.docker.com/engine/reference/builder/#copy
-COPY ../../migrations ./migration
-COPY ../../cmd/api/migration.go ./cmd/api/migration.go
-
+COPY migrations ./migrations
+COPY ./cmd/migrate/main.go ./cmd/migrate/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /migrate cmd/migrate/main.go
 # Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app
-CMD ["go run cmd/migrate/main.go up"]
+#CMD ["/migrate up"]

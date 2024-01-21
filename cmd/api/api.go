@@ -3,35 +3,38 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/go-kit/kit/log"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/turkishjoe/xml-parser/internal/app/api"
 	"github.com/turkishjoe/xml-parser/internal/app/api/endpoints"
 	"github.com/turkishjoe/xml-parser/internal/app/api/transport"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
 )
 
-var logger log.Logger
+var logger *log.Logger
 
 func main() {
-	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
-
-	err := godotenv.Load()
-	if err != nil {
-		logger.Log("Fatal load env")
+	envError := godotenv.Load()
+	if envError != nil {
+		logger.Fatal("Fatal load env:", envError)
 		return
 	}
 
-	conn := initDbPoll()
+	logFileWriter, err := os.OpenFile(os.Getenv("LOG_FILE"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer logFileWriter.Close()
 
+	logger = log.New(logFileWriter, "", 0644)
+
+	conn := initDbPoll()
 	defer conn.Close()
 
-	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	httpAddr := net.JoinHostPort(os.Getenv("HTTP_HOST"), os.Getenv("HTTP_PORT"))
 
 	var (
@@ -43,14 +46,14 @@ func main() {
 	// The HTTP listener mounts the Go kit HTTP handler we created.
 	httpListener, errListen := net.Listen("tcp", httpAddr)
 	if errListen != nil {
-		logger.Log("transport", "HTTP", "during", "Listen", "err", errListen)
+		logger.Println("Error http transport", errListen)
 		os.Exit(1)
 	}
 
 	errService := http.Serve(httpListener, httpHandler)
 
 	if errService != nil {
-		logger.Log("transport", "HTTP", "during", "Listen", "err", errService)
+		logger.Println("Error http listen", errListen)
 		os.Exit(1)
 	}
 }
@@ -59,8 +62,7 @@ func initDbPoll() *pgxpool.Pool {
 	dbPort, parseError := strconv.Atoi(os.Getenv("DB_PORT"))
 
 	if parseError != nil {
-		logger.Log("Unable to read config:", parseError)
-		os.Exit(1)
+		logger.Fatal("Unable to read config:", parseError)
 	}
 
 	postgresUrl := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
@@ -73,8 +75,7 @@ func initDbPoll() *pgxpool.Pool {
 
 	conn, err := pgxpool.New(context.Background(), postgresUrl)
 	if err != nil {
-		logger.Log("Unable to connect to database:", err)
-		os.Exit(1)
+		logger.Fatal("Unable to connect to database:", err)
 	}
 
 	return conn

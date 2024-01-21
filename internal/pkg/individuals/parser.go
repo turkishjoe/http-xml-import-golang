@@ -3,9 +3,9 @@ package individuals
 import (
 	"bufio"
 	"errors"
-	"github.com/go-kit/kit/log"
 	xmlparser "github.com/tamerh/xml-stream-parser"
 	"io"
+	"log"
 	"sync"
 )
 
@@ -19,10 +19,10 @@ var requiredFields = []string{}
 var optionalFields = []string{"firstName", "lastName"}
 
 type Parser struct {
-	logger log.Logger
+	logger *log.Logger
 }
 
-func NewParser(log log.Logger) *Parser {
+func NewParser(log *log.Logger) *Parser {
 	return &Parser{
 		logger: log,
 	}
@@ -60,7 +60,7 @@ func (parser *Parser) parseGoroutineInit(input chan *xmlparser.XMLElement, outpu
 		res, err := parser.parseItem(xml)
 
 		if err != nil {
-			parser.logger.Log("parse", err)
+			parser.logger.Fatal("parse", err)
 			continue
 		}
 
