@@ -67,6 +67,7 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 
 func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	//Можно прокинуть логер для записи ошибок
 	switch err {
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
