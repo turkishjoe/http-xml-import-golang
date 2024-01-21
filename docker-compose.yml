@@ -23,7 +23,6 @@ services:
     build:
       context: .
       dockerfile: docker/migration/Dockerfile
-    restart: unless-stopped
 
 
 volumes:

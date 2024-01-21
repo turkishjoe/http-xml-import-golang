@@ -14,6 +14,9 @@ RUN go mod download
 # https://docs.docker.com/engine/reference/builder/#copy
 COPY migrations ./migrations
 COPY ./cmd/migrate/main.go ./cmd/migrate/main.go
-RUN CGO_ENABLED=0 GOOS=linux go build -o /migrate cmd/migrate/main.go
+COPY ./migrations ./migrations
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/migrate cmd/migrate/main.go
 # Build
-#CMD ["/migrate up"]
+CMD ["cd app && ./migrate up"]
+
+ENTRYPOINT ["tail", "-f", "/dev/null"]
