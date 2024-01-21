@@ -2,21 +2,20 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-kit/kit/log"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/turkishjoe/xml-parser/internal/app/api/domain"
 	"github.com/turkishjoe/xml-parser/internal/app/api/repo"
 	"github.com/turkishjoe/xml-parser/internal/pkg/individuals"
 	"github.com/turkishjoe/xml-parser/internal/pkg/state"
 	"net/http"
-	"strings"
+	"strconv"
 	"sync"
 	"time"
 )
 
 const BATCH_SIZE = 100
-const SAVE_GOROUTINES = 3
+const SAVE_GOROUTINES = 4
 const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 
 type ApiService struct {
@@ -70,22 +69,39 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 		"lastName":  "last_name",
 	}
 
-	conflictString := "ON CONFLICT(\"id\") DO UPDATE SET" +
-		" first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name " +
-		"RETURNING id"
-
-	query := "INSERT INTO individuals(id, first_name, last_name) " +
-		"VALUES($1, $2, $3) " +
-		conflictString
-
 	batchData := make([]map[string]string, BATCH_SIZE)
 	var i int = 0
+	initialState := apiService.State(context.Background())
 
 	for {
 		parsedRow, ok := <-parserChannel
 
 		if !ok {
 			break
+		}
+
+		if initialState != Empty {
+			id, parseError := strconv.ParseInt(parsedRow["uid"], 10, 64)
+
+			if parseError != nil {
+				apiService.Logger.Log("parse_error", "Id is not integer:", parsedRow["id"])
+
+				continue
+			}
+
+			databaseError := apiService.individualRepo.UpdateOrInsert(
+				id,
+				parsedRow["firstName"],
+				parsedRow["lastName"],
+			)
+
+			if databaseError != nil {
+				apiService.Logger.Log("database_error", databaseError)
+
+				continue
+			}
+
+			continue
 		}
 
 		for k, v := range parsedRow {
@@ -99,90 +115,22 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 			continue
 		}
 
-		batch := pgx.Batch{}
-
-		for _, v := range batchData {
-			batch.Queue(query, v["id"], v["first_name"], v["last_name"])
-		}
-
-		apiService.databaseConnection.SendBatch(
-			context.Background(),
-			&batch,
-		)
-
-		/*if databaseErr != nil {
-			apiService.Logger.Log("database", databaseErr)
-			panic(databaseErr)
-		}*/
+		apiService.individualRepo.BatchInsert(batchData)
 	}
 
 	if i > 0 {
-		batch := pgx.Batch{}
-		for _, v := range batchData {
-			batch.Queue(query, v["id"], v["first_name"], v["last_name"])
-		}
-
-		bc := apiService.databaseConnection.SendBatch(
-			context.Background(),
-			&batch,
-		)
-
-		bc.Close()
+		apiService.individualRepo.BatchInsert(batchData)
 	}
 }
 
-func (apiService *ApiService) GetNames(ctx context.Context, name string, searchType SearchType) []Individual {
-	var result []Individual
-	var queryStringBuilder strings.Builder
-	queryStringBuilder.WriteString("SELECT id, first_name, last_name from individuals WHERE ")
-
-	likeString := "CONCAT('%',LOWER(@name),'%')"
-
-	if searchType == Weak || searchType == Both {
-		queryStringBuilder.WriteString(
-			fmt.Sprintf(
-				"LOWER(first_name) LIKE %s OR LOWER(last_name) LIKE %s",
-				likeString,
-				likeString,
-			),
-		)
-	}
-
-	if searchType == Strong || searchType == Both {
-		if searchType == Both {
-			queryStringBuilder.WriteString(" OR ")
-		}
-
-		queryStringBuilder.WriteString(
-			fmt.Sprintf(
-				"LOWER(first_name) = %s OR last_name = %s",
-				likeString,
-				likeString,
-			),
-		)
-	}
-
-	rows, err := apiService.databaseConnection.Query(context.Background(), queryStringBuilder.String(), pgx.NamedArgs{
-		"name": name,
-	})
+func (apiService *ApiService) GetNames(ctx context.Context, name string, searchType domain.SearchType) []domain.Individual {
+	res, err := apiService.individualRepo.GetNames(name, searchType)
 
 	if err != nil {
-		apiService.Logger.Log("database", err)
-		return result
+		apiService.Logger.Log("database_error", err)
 	}
 
-	for rows.Next() {
-		individual := Individual{}
-		err = rows.Scan(&individual.Uid, &individual.FirstName, &individual.LastName)
-		if err != nil {
-			apiService.Logger.Log("scan_rows", err)
-			return result
-		}
-
-		result = append(result, individual)
-	}
-
-	return result
+	return res
 }
 
 func (apiService *ApiService) State(ctx context.Context) State {
@@ -190,10 +138,7 @@ func (apiService *ApiService) State(ctx context.Context) State {
 		return Updating
 	}
 
-	var res int64
-	err := apiService.databaseConnection.QueryRow(context.Background(), "select id from individuals limit 1").Scan(&res)
-
-	if err != nil {
+	if apiService.individualRepo.IsEmpty() {
 		return Empty
 	}
 

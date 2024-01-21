@@ -1,6 +1,9 @@
 package endpoints
 
-import "github.com/turkishjoe/xml-parser/internal/app/api"
+import (
+	"github.com/turkishjoe/xml-parser/internal/app/api"
+	"github.com/turkishjoe/xml-parser/internal/app/api/domain"
+)
 
 type UpdateRequest struct {
 }
@@ -23,13 +26,13 @@ type GetNameRequest struct {
 }
 
 type GetNameResponse struct {
-	Individuals []api.Individual
+	Individuals []domain.Individual
 }
 
-var searchTypeStringMap = map[string]api.SearchType{
-	"strong": api.Strong,
-	"weak":   api.Weak,
-	"both":   api.Both,
+var searchTypeStringMap = map[string]domain.SearchType{
+	"strong": domain.Strong,
+	"weak":   domain.Weak,
+	"both":   domain.Both,
 }
 
 var stateMap = map[api.State]string{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/turkishjoe/xml-parser/internal/app/api"
+	"github.com/turkishjoe/xml-parser/internal/app/api/domain"
 )
 
 type Set struct {
@@ -46,14 +47,14 @@ func MakeGetNamesEndpoint(svc api.Service) endpoint.Endpoint {
 		searchType, ok := searchTypeStringMap[req.IndividualSearchType]
 
 		if !ok {
-			searchType = api.Both
+			searchType = domain.Both
 		}
 
 		names := svc.GetNames(ctx, req.Name, searchType)
 
 		//Для декода в пустом массиве
 		if names == nil {
-			names = make([]api.Individual, 0)
+			names = make([]domain.Individual, 0)
 		}
 
 		return GetNameResponse{Individuals: names}, nil
