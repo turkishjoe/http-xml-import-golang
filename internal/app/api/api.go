@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-const BATCH_SIZE = 100
-const SAVE_GOROUTINES = 4
+const BATCH_SIZE = 50
+const SAVE_GOROUTINES = 2
 const SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.xml"
 
 type ApiService struct {
