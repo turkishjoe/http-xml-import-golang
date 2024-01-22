@@ -33,11 +33,7 @@ func (individualRepo *individualRepoImp) IsEmpty() bool {
 	var res int64
 	err := individualRepo.databaseConnection.QueryRow(context.Background(), "select id from individuals limit 1").Scan(&res)
 
-	if err != nil {
-		return false
-	}
-
-	return true
+	return err != nil
 }
 
 func (individualRepo *individualRepoImp) Insert(id int64, firstName string, lastName string) error {
