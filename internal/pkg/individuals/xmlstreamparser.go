@@ -37,7 +37,6 @@ func (parser *xmlStreamParser) Parse(input io.ReadCloser, output chan map[string
 		go parser.parseGoroutineInit(inputXmlChan, output, &wg)
 	}
 
-	close(inputXmlChan)
 	wg.Wait()
 	close(output)
 }
