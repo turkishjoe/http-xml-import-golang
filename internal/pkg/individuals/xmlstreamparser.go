@@ -29,16 +29,12 @@ func (parser *xmlStreamParser) Parse(input io.ReadCloser, output chan map[string
 	defer input.Close()
 	buf := bufio.NewReaderSize(input, BUFFER_SIZE)
 	xmlParser := xmlparser.NewXMLParser(buf, "sdnEntry")
-	inputXmlChan := make(chan *xmlparser.XMLElement, PARSE_GOROUTINE)
+	inputXmlChan := xmlParser.Stream()
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < PARSE_GOROUTINE; i++ {
 		wg.Add(1)
 		go parser.parseGoroutineInit(inputXmlChan, output, &wg)
-	}
-
-	for xml := range xmlParser.Stream() {
-		inputXmlChan <- xml
 	}
 
 	close(inputXmlChan)
