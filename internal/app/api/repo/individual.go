@@ -97,12 +97,12 @@ func (individualRepo *individualRepoImp) GetNamesBySingleString(name string, sea
 	var queryStringBuilder strings.Builder
 	queryStringBuilder.WriteString("SELECT id, first_name, last_name from individuals WHERE ")
 
-	likeString := "CONCAT('%',LOWER(@name),'%')"
-
 	if searchType == domain.Weak || searchType == domain.Both {
+		likeString := "CONCAT('%',LOWER(@name),'%')"
+
 		queryStringBuilder.WriteString(
 			fmt.Sprintf(
-				"LOWER(first_name) LIKE %s OR LOWER(last_name) LIKE %s",
+				" LOWER(first_name) LIKE %s OR LOWER(last_name) LIKE %s ",
 				likeString,
 				likeString,
 			),
@@ -115,11 +115,7 @@ func (individualRepo *individualRepoImp) GetNamesBySingleString(name string, sea
 		}
 
 		queryStringBuilder.WriteString(
-			fmt.Sprintf(
-				"LOWER(first_name) = %s OR last_name = %s",
-				likeString,
-				likeString,
-			),
+			"LOWER(first_name) = LOWER(@name) OR LOWER(last_name) = LOWER(@name)",
 		)
 	}
 
@@ -149,10 +145,10 @@ func (individualRepo *individualRepoImp) GetNamesByFirstAndLastName(firstName, l
 	var queryStringBuilder strings.Builder
 	queryStringBuilder.WriteString("SELECT id, first_name, last_name from individuals WHERE ")
 
-	firstNameLikeString := "CONCAT('%',LOWER(@first_name),'%')"
-	lastNamelikeString := "CONCAT('%',LOWER(@last_name),'%')"
-
 	if searchType == domain.Weak || searchType == domain.Both {
+		firstNameLikeString := "CONCAT('%',LOWER(@first_name),'%')"
+		lastNamelikeString := "CONCAT('%',LOWER(@last_name),'%')"
+
 		queryStringBuilder.WriteString(
 			fmt.Sprintf(
 				`(LOWER(first_name) LIKE %s OR LOWER(last_name) LIKE %s) OR 
@@ -173,11 +169,8 @@ func (individualRepo *individualRepoImp) GetNamesByFirstAndLastName(firstName, l
 
 		queryStringBuilder.WriteString(
 			fmt.Sprintf(
-				`(LOWER(first_name) = %s AND last_name = %s) OR (LOWER(first_name) = %s AND last_name = %s)`,
-				firstNameLikeString,
-				lastNamelikeString,
-				lastNamelikeString,
-				firstNameLikeString,
+				`(LOWER(first_name) = LOWER(@first_name) AND LOWER(last_name) = LOWER(@last_name)) 
+					OR (LOWER(first_name) = LOWER(@last_name) AND LOWER(last_name) = LOWER(@first_name))`,
 			),
 		)
 	}
