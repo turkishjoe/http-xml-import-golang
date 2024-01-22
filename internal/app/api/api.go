@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -121,8 +122,30 @@ func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sy
 	}
 }
 
+//В примерах не до конца понял поведение, которое должно быть. Увидел, что если в name указано только
+//одно слово, то нашлось по last_name(в моем случае, я при таком раскладе ищу либо совпадение по first_name, либо
+//по last_name, так как в ТЗ не обговоренно иного). Также если передать строку с пробелами, я беру в качестве
+//first_name - первое слово, а в качестве last_name все остальные слова. В бд видел, что lastname не всегда
+//представляет одно слово, потом процесс реален. Также у меня происходит обмен. (То есть last_name и first_name меняются
+//и возвращаются все совпдаения, подробнее cм репозиторий). Сделано так, так как по ответам, не совсем понятно, как правильно
 func (apiService *ApiService) GetNames(ctx context.Context, name string, searchType domain.SearchType) []domain.Individual {
-	res, err := apiService.individualRepo.GetNames(name, searchType)
+	words := strings.Fields(name)
+
+	if len(words) == 1 {
+		res, err := apiService.individualRepo.GetNamesBySingleString(name, searchType)
+
+		if err != nil {
+			apiService.Logger.Println("Database error:", err)
+		}
+
+		return res
+	}
+
+	res, err := apiService.individualRepo.GetNamesByFirstAndLastName(
+		words[0],
+		strings.Join(words[1:], " "),
+		searchType,
+	)
 
 	if err != nil {
 		apiService.Logger.Println("Database error:", err)

@@ -15,7 +15,8 @@ type IndividualRepo interface {
 	Insert(id int64, firstName string, lastName string) error
 	UpdateOrInsert(id int64, firstName string, lastName string) error
 	BatchInsert(batchData []map[string]string)
-	GetNames(name string, searchType domain.SearchType) ([]domain.Individual, error)
+	GetNamesBySingleString(name string, searchType domain.SearchType) ([]domain.Individual, error)
+	GetNamesByFirstAndLastName(firstName, lastName string, searchType domain.SearchType) ([]domain.Individual, error)
 }
 
 type individualRepoImp struct {
@@ -91,7 +92,7 @@ func (individualRepo *individualRepoImp) BatchInsert(batchData []map[string]stri
 	bc.Close()
 }
 
-func (individualRepo *individualRepoImp) GetNames(name string, searchType domain.SearchType) ([]domain.Individual, error) {
+func (individualRepo *individualRepoImp) GetNamesBySingleString(name string, searchType domain.SearchType) ([]domain.Individual, error) {
 	var result []domain.Individual
 	var queryStringBuilder strings.Builder
 	queryStringBuilder.WriteString("SELECT id, first_name, last_name from individuals WHERE ")
@@ -124,6 +125,66 @@ func (individualRepo *individualRepoImp) GetNames(name string, searchType domain
 
 	rows, err := individualRepo.databaseConnection.Query(context.Background(), queryStringBuilder.String(), pgx.NamedArgs{
 		"name": name,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		individual := domain.Individual{}
+		err = rows.Scan(&individual.Uid, &individual.FirstName, &individual.LastName)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, individual)
+	}
+
+	return result, nil
+}
+
+func (individualRepo *individualRepoImp) GetNamesByFirstAndLastName(firstName, lastName string, searchType domain.SearchType) ([]domain.Individual, error) {
+	var result []domain.Individual
+	var queryStringBuilder strings.Builder
+	queryStringBuilder.WriteString("SELECT id, first_name, last_name from individuals WHERE ")
+
+	firstNameLikeString := "CONCAT('%',LOWER(@first_name),'%')"
+	lastNamelikeString := "CONCAT('%',LOWER(@last_name),'%')"
+
+	if searchType == domain.Weak || searchType == domain.Both {
+		queryStringBuilder.WriteString(
+			fmt.Sprintf(
+				`(LOWER(first_name) LIKE %s OR LOWER(last_name) LIKE %s) OR 
+				(LOWER(first_name) LIKE %s AND LOWER(last_name) LIKE %s)  
+				`,
+				firstNameLikeString,
+				lastNamelikeString,
+				lastNamelikeString,
+				firstNameLikeString,
+			),
+		)
+	}
+
+	if searchType == domain.Strong || searchType == domain.Both {
+		if searchType == domain.Both {
+			queryStringBuilder.WriteString(" OR ")
+		}
+
+		queryStringBuilder.WriteString(
+			fmt.Sprintf(
+				`(LOWER(first_name) = %s AND last_name = %s) OR (LOWER(first_name) = %s AND last_name = %s)`,
+				firstNameLikeString,
+				lastNamelikeString,
+				lastNamelikeString,
+				firstNameLikeString,
+			),
+		)
+	}
+
+	rows, err := individualRepo.databaseConnection.Query(context.Background(), queryStringBuilder.String(), pgx.NamedArgs{
+		"first_name": firstName,
+		"last_name":  lastName,
 	})
 
 	if err != nil {
