@@ -28,9 +28,9 @@ func CreateRepo(DatabaseConnection *pgxpool.Pool) IndividualRepo {
 	}
 }
 
-func (IndividualRepo *individualRepoImp) IsEmpty() bool {
+func (individualRepo *individualRepoImp) IsEmpty() bool {
 	var res int64
-	err := IndividualRepo.databaseConnection.QueryRow(context.Background(), "select id from individuals limit 1").Scan(&res)
+	err := individualRepo.databaseConnection.QueryRow(context.Background(), "select id from individuals limit 1").Scan(&res)
 
 	if err != nil {
 		return false
@@ -39,12 +39,12 @@ func (IndividualRepo *individualRepoImp) IsEmpty() bool {
 	return true
 }
 
-func (IndividualRepo *individualRepoImp) Insert(id int64, firstName string, lastName string) error {
+func (individualRepo *individualRepoImp) Insert(id int64, firstName string, lastName string) error {
 	query := `INSERT INTO individuals(id, first_name, last_name)
           VALUES($1, $2, $3)
           ON CONFLICT("id") DO UPDATE SET first_name=$2, last_name=$3 RETURNING id`
 
-	_, databaseErr := IndividualRepo.databaseConnection.Exec(
+	_, databaseErr := individualRepo.databaseConnection.Exec(
 		context.Background(),
 		query,
 		id,
@@ -55,10 +55,10 @@ func (IndividualRepo *individualRepoImp) Insert(id int64, firstName string, last
 	return databaseErr
 }
 
-func (IndividualRepo *individualRepoImp) UpdateOrInsert(id int64, firstName string, lastName string) error {
+func (individualRepo *individualRepoImp) UpdateOrInsert(id int64, firstName string, lastName string) error {
 	query := `UPDATE individuals SET first_name=$2, last_name=$3 WHERE id = $1`
 
-	_, databaseErr := IndividualRepo.databaseConnection.Exec(
+	t, databaseErr := individualRepo.databaseConnection.Exec(
 		context.Background(),
 		query,
 		id,
@@ -66,10 +66,14 @@ func (IndividualRepo *individualRepoImp) UpdateOrInsert(id int64, firstName stri
 		lastName,
 	)
 
+	if t.RowsAffected() == 0 {
+		return individualRepo.Insert(id, firstName, lastName)
+	}
+
 	return databaseErr
 }
 
-func (IndividualRepo *individualRepoImp) BatchInsert(batchData []map[string]string) {
+func (individualRepo *individualRepoImp) BatchInsert(batchData []map[string]string) {
 	query := `INSERT INTO individuals(id, first_name, last_name)
           VALUES($1, $2, $3)
           ON CONFLICT("id") DO UPDATE SET first_name=$2, last_name=$3 RETURNING id`
@@ -79,7 +83,7 @@ func (IndividualRepo *individualRepoImp) BatchInsert(batchData []map[string]stri
 		batch.Queue(query, v["id"], v["first_name"], v["last_name"])
 	}
 
-	bc := IndividualRepo.databaseConnection.SendBatch(
+	bc := individualRepo.databaseConnection.SendBatch(
 		context.Background(),
 		&batch,
 	)
