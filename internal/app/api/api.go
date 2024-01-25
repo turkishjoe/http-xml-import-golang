@@ -38,6 +38,12 @@ func (apiService *ApiService) Update(ctx context.Context) error {
 		return errors.New("Service is processing import now")
 	}
 
+	go apiService.processUpdate(ctx)
+
+	return nil
+}
+
+func (apiService *ApiService) processUpdate(ctx context.Context) {
 	apiService.notifier.Notify(true)
 	defer apiService.notifier.Notify(false)
 
@@ -56,8 +62,6 @@ func (apiService *ApiService) Update(ctx context.Context) error {
 	}
 
 	wg.Wait()
-
-	return nil
 }
 
 func (apiService *ApiService) parse(parserChannel chan map[string]string, wg *sync.WaitGroup) {
